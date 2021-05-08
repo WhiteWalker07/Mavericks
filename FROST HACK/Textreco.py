@@ -6,8 +6,8 @@ from matplotlib import pyplot as plt
   
 pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
     
-#link = r'C:\Users\suyash\Desktop\Shape9.jpeg'
-img1 = cv2.imread("Shape6.jpeg")
+link = r'C:\Users\suyash\Desktop\Shape8.jpeg'
+img1 = cv2.imread(link)
 img = cv2.resize(img1,(500,500),interpolation=cv2.INTER_AREA)
 gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
@@ -16,7 +16,8 @@ ret, thresh1 = cv2.threshold(gray, 0, 255, cv2.THRESH_OTSU | cv2.THRESH_BINARY_I
 rect_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (8, 8))
 contours, hierarchy = cv2.findContours(thresh1, cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_NONE)
 
-
+liobj = []
+i = 0
 for cnt in contours:
     x, y, w, h = cv2.boundingRect(cnt)
       
@@ -35,8 +36,8 @@ for cnt in contours:
     file.write(text)
     file.write("\n")
     file.close()
-print(text)
-print(text1)
+#print(text)
+    print(text1)
 blank = np.zeros(img.shape, dtype='uint8')
 # converting image into grayscale image
 
@@ -65,13 +66,13 @@ gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 # setting threshold of gray image
 _, threshold = cv2.threshold(gray, 120, 255, cv2.THRESH_BINARY)
 #threshold = cv2.erode(threshold1, (7,7), iterations=4)
-cv2.imshow("hello", threshold)
+#cv2.imshow("hello", threshold)
 
 # using a findContours() function
 contours, _ = cv2.findContours(
 	threshold, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 cv2.drawContours(blank, contours, -1, (0,0,255), 1)
-cv2.imshow("draw", blank)
+#cv2.imshow("draw", blank)
 i = 0
 
 # list for storing names of shapes
@@ -94,15 +95,22 @@ for contour in contours:
         if M['m00'] != 0.0:
             x = int(M['m10']/M['m00'])
             y = int(M['m01']/M['m00'])
+            
+        i+=1
+        if i%2 == 1:
+            liobj.append([x,y])
+        else:
+            pass
+
         img = cv2.line(img, (x,y), (x, y+int(h/1.5)) , (255,0,0), 3)
         img = cv2.line(img, (x,y+int(h/1.5)), (x-int(x/10),y+int(h/1.8)),(255,0,0), 3)
         img = cv2.line(img, (x,y+int(h/1.5)), (x+int(x/10),y+int(h/1.8)) ,(255,0,0),3)
         img = cv2.putText(img, "mg", (x-20,y+int(h/1.5)+20) ,cv2.FONT_HERSHEY_COMPLEX, 0.7, (255,0,0), 2)
-        img = cv2.line(img, (x,y), (x, y-int(h/1.5)) , (0,255,0), 3)
-        img = cv2.line(img, (x,y-int(h/1.5)), (x+int(x/10),y-int(h/1.8)),(0,255,0), 3)
-        img = cv2.line(img, (x,y-int(h/1.5)), (x-int(x/10),y-int(h/1.8)) ,(0,255,0),3)
-        img = cv2.putText(img, "N", (x-20,y-int(h/1.5)-20) ,cv2.FONT_HERSHEY_COMPLEX, 0.7, (0,255,0), 2)
-        cv2.imshow('arrow', img)    
+        img = cv2.line(img, (x,y), (x, y-int(h/1.5)) , (0,0,255), 3)
+        img = cv2.line(img, (x,y-int(h/1.5)), (x+int(x/10),y-int(h/1.8)),(0,0,255), 3)
+        img = cv2.line(img, (x,y-int(h/1.5)), (x-int(x/10),y-int(h/1.8)) ,(0,0,255),3)
+        img = cv2.putText(img, "N", (x-20,y-int(h/1.5)-20) ,cv2.FONT_HERSHEY_COMPLEX, 0.7, (0,0,255), 2)
+        #cv2.imshow('arrow', img)    
 
         # putting shape name at center of each shape and drawContours() function
         if len(approx) == 3:
@@ -111,9 +119,10 @@ for contour in contours:
         elif len(approx) == 4:
             cv2.drawContours(img, [contour], 0, (0,255, 255), 1)
             cv2.putText(img, 'Quadrilateral', (x, y),cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0,255, 255), 2)
+            
         elif len(approx) == 5:
             cv2.drawContours(img, [contour], 0, (0, 255,0), 1)
-            cv2.putText(img, 'Pentagon', (x, y),cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255,0),2)
+            cv2.putText(img, 'Pentagon', (x, y),cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0,0, 255),2)
         elif len(approx) == 6:
             cv2.drawContours(img, [contour], 0, (0, 0, 255), 1)
             cv2.putText(img, 'Hexagon', (x, y),cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
@@ -125,7 +134,7 @@ for contour in contours:
             cv2.putText(img, 'circle', (x, y),cv2.FONT_HERSHEY_SIMPLEX, 0.6, ( 255, 255,0), 2)
 # displaying the image after drawing contours
 cv2.imshow('shapes', img)
-
+print(liobj)
 
 
 
