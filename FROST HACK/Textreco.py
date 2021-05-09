@@ -1,13 +1,14 @@
 import cv2
 import pytesseract
-
+import os
 import numpy as np
 from matplotlib import pyplot as plt
+import re
   
 pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
     
-link = r'C:\Users\suyash\Desktop\Shape8.jpeg'
-img1 = cv2.imread(link)
+#link = r'C:\Users\suyash\Desktop\Shape13.jpg'
+img1 = cv2.imread("Shape13.jpg")
 img = cv2.resize(img1,(500,500),interpolation=cv2.INTER_AREA)
 gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
@@ -17,7 +18,7 @@ rect_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (8, 8))
 contours, hierarchy = cv2.findContours(thresh1, cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_NONE)
 
 liobj = []
-i = 0
+
 for cnt in contours:
     x, y, w, h = cv2.boundingRect(cnt)
       
@@ -33,11 +34,11 @@ for cnt in contours:
     
     # Apply OCR on the cropped image
     text1 = pytesseract.image_to_string(cropped)
-    file.write(text)
-    file.write("\n")
-    file.close()
-#print(text)
-    print(text1)
+    file.write(text1)
+    #file.write("\n")  
+    #print(text)
+    #print(text1)
+file.close()     
 blank = np.zeros(img.shape, dtype='uint8')
 # converting image into grayscale image
 
@@ -105,11 +106,11 @@ for contour in contours:
         img = cv2.line(img, (x,y), (x, y+int(h/1.5)) , (255,0,0), 3)
         img = cv2.line(img, (x,y+int(h/1.5)), (x-int(x/10),y+int(h/1.8)),(255,0,0), 3)
         img = cv2.line(img, (x,y+int(h/1.5)), (x+int(x/10),y+int(h/1.8)) ,(255,0,0),3)
-        img = cv2.putText(img, "mg", (x-20,y+int(h/1.5)+20) ,cv2.FONT_HERSHEY_COMPLEX, 0.7, (255,0,0), 2)
+        img = cv2.putText(img, "mg", (x-20,y+int(h/1.5)+20) ,cv2.FONT_HERSHEY_COMPLEX, 0.7, (255,0,0), 1)
         img = cv2.line(img, (x,y), (x, y-int(h/1.5)) , (0,0,255), 3)
         img = cv2.line(img, (x,y-int(h/1.5)), (x+int(x/10),y-int(h/1.8)),(0,0,255), 3)
         img = cv2.line(img, (x,y-int(h/1.5)), (x-int(x/10),y-int(h/1.8)) ,(0,0,255),3)
-        img = cv2.putText(img, "N", (x-20,y-int(h/1.5)-20) ,cv2.FONT_HERSHEY_COMPLEX, 0.7, (0,0,255), 2)
+        img = cv2.putText(img, "N", (x-20,y-int(h/1.5)-20) ,cv2.FONT_HERSHEY_COMPLEX, 0.7, (0,0,255), 1)
         #cv2.imshow('arrow', img)    
 
         # putting shape name at center of each shape and drawContours() function
@@ -136,9 +137,99 @@ for contour in contours:
 cv2.imshow('shapes', img)
 print(liobj)
 
+f = open("recognized.txt", "r")
+read = f.read()
+read = read.replace(" ", "")
+read = read.replace("\n", "")
+read = read.replace("", "")
+print(read)
+f.close()
+os.remove("recognized.txt")
+digit = re.compile('\D')
+n = digit.split(read)
+num = []
+for i in n:
+    if i != '':
+        num.append(i)
+        
+digit = re.compile('\d')
+a = digit.split(read)
+alpha = []
+for i in a:
+    if i != '':
+        alpha.append(i)
+print(num)        
+print(alpha)
+kg = []
+keyset = []
+for i in alpha:
+    if i.upper() == 'KG':
+        kg.append(i)
+if len(liobj) == 1:
+    keyset.append(str(liobj[0])+";" + str(num[0])) 
+elif len(liobj) == 2:
+    if len(kg) == 1:
+        if liobj[0][1]>liobj[1][1]:
+            keyset.append(str(liobj[1])+";"+str(num[0]))
+        else:
+            keyset.append(str(liobj[0])+";"+str(num[0]))
+    elif len(kg) == 2:
+        if liobj[0][1]>liobj[1][1]:
+            keyset.append(str(liobj[1])+";"+str(num[0]))
+            keyset.append(str(liobj[0])+";" + str(num[0]))
+        else:
+            keyset.append(str(liobj[0])+";"+str(num[1]))
+            keyset.append(str(liobj[1])+";" + str(num[1]))  
+else:
+    pass
+print(keyset[0])
+if len(keyset) == 1:
+    s = keyset[0]
+    key = s.split(";")
+    img = cv2.putText(img, "   ="+str(int(key[1])*10)+" N", (x-20,y+int(h/1.5)+20) ,cv2.FONT_HERSHEY_COMPLEX, 0.7, (255,0,0), 1)
+    img = cv2.putText(img, "  ="+str(int(key[1])*10)+" N", (x-20,y-int(h/1.5)-20) ,cv2.FONT_HERSHEY_COMPLEX, 0.7, (0,0,255), 1)
+    img = cv2.putText(img, "N=mg="+str(int(key[1])*10)+" N", (10,25), cv2.FONT_HERSHEY_COMPLEX, 0.8, (30, 120, 255), 1)
+
+
+elif len(keyset) == 2:
+    nor = 0
+    l=-1
+
+    for i in range(2):
+        l +=1
+        kyu = keyset[i]
+        #print(kyu)
+        key = kyu.split(";")
+        x =  key[0]
+        nor += int(key[1])
+        st = re.compile('\D')
+        dig = st.split(x)
+        dhinchak = []
+        for i in dig:
+            if i != '':
+                dhinchak.append(i)
+        x = dhinchak[0]
+        y =dhinchak[1]
+        
+        if l==0:
+            img = cv2.putText(img,"BODY1: n=mg="+str(int(nor)*10)+" N", (10,25), cv2.FONT_HERSHEY_COMPLEX, 0.5, (30, 120, 255), 1)
+        else:
+            img = cv2.putText(img,"BODY2: Mg+mg=N="+str(int(nor)*10)+" N", (10,475), cv2.FONT_HERSHEY_COMPLEX, 0.5, (30, 120, 255), 1)
+        img = cv2.putText(img, "   ="+str(int(key[1])*10)+" N", (int(x)-20,int(y)+int(h/1.5)+20) ,cv2.FONT_HERSHEY_COMPLEX, 0.7, (255,0,0), 1)
+        img = cv2.putText(img, "  ="+str(int(nor)*10)+" N", (int(x)-20,int(y)-int(h/1.5)-20) ,cv2.FONT_HERSHEY_COMPLEX, 0.7, (0,0,255), 1)
 
 
 
+
+
+
+
+
+
+
+
+
+cv2.imshow("end", img)
 cv2.waitKey(0)
 cv2.destroyAllWindows()
 
