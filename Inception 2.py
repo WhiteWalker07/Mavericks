@@ -354,91 +354,71 @@ if 1000 < contour_area < 5000:
 cv2.imshow('Shapes and Arrows', resized_image)
 
 
-# ELIMINATION FO EXTRA CENTRES BEING DETECTED
-
-# In this logic first we are eliminating the outer and inner edge error by taking out the distance between the centres 
-# as if they are clearing the area cutoff then two body should be at a min distance therefore using this interpretation 
-# we are elimination the overlap error and the comes the oct-rect error to  emove this we are taking out the number of centre 
-# in the area of the body and if they are greater than or equal to 3 then we remove it 3 was taken as in octa-rect error one of 
-# rectangles will have the centre of octagon so to prevent that rectangle to get eliminated.
-
-
-for i in range(len(liobj)):
-    w=0
-    for x in range(len(liobj)-i):
-        if (-10<liobj[i][0] -liobj[x+i-w][0] < 10) & (-10<liobj[i][1] - liobj[x+i-w][1]<10) & (x+i-w != i):
-            liobj.remove(liobj[x+i-w])
-            lianother.remove(lianother[x+i-w])
-            eli.remove(eli[x+i-w])
-            w= w+1
-
-    ec = 0
-    for x in range(len(liobj)):
-        s = 0
-        for cen in liobj:
-            if (lianother[x-ec][0] < cen[0] < lianother[x-ec][0] + lianother[x-ec][2]) &  (lianother[x-ec][1] < cen[1] < lianother[x-ec][1] + lianother[x-ec][3]):
-                s = s + 1
-        if s >=3 :
-            liobj.remove(liobj[x-ec])
-            lianother.remove(lianother[x-ec])
-            ec = ec +1
-            eli.remove(eli[x-ec])
-
-
 """
-for i in range(len(text)):
-    w=0
-    for x in range(len(text)-i):
-        if (-10<text[i][0] -text[x+i-w][0] < 10) & (-10<text[i][1] - text[x+i-w][1]<10) & (x+i-w != i):            
-            text.remove(text[x+i-w])            
-            w= w+1
-"""
-# This logic is working and is to eliminate the octa-rect error            
-"""
-for l in liobj:
-    x = l[0]
-    y = l[1]           
-    img = cv2.line(img, (x,y), (x, y+int(h/1.5)) , (255,0,0), 3)
-    img = cv2.line(img, (x,y+int(h/1.5)), (x-int(x/10),y+int(h/1.8)),(255,0,0), 3)
-    img = cv2.line(img, (x,y+int(h/1.5)), (x+int(x/10),y+int(h/1.8)) ,(255,0,0),3)
-    img = cv2.putText(img, "mg", (x-20,y+int(h/1.5)+20) ,cv2.FONT_HERSHEY_COMPLEX, 0.7, (255,0,0), 1)
-    img = cv2.line(img, (x,y), (x, y-int(h/1.5)) , (0,0,255), 3)
-    img = cv2.line(img, (x,y-int(h/1.5)), (x+int(x/10),y-int(h/1.8)),(0,0,255), 3)
-    img = cv2.line(img, (x,y-int(h/1.5)), (x-int(x/10),y-int(h/1.8)) ,(0,0,255),3)
-    img = cv2.putText(img, "N", (x-20,y-int(h/1.5)-20) ,cv2.FONT_HERSHEY_COMPLEX, 0.7, (0,0,255), 1)
+Elimination of Extra Centers and Noise Reduction
+Description:
+    This section removes redundant centers and noise in the detected shapes and text data.
+    It addresses edge errors, overlaps, and eliminates inaccuracies caused by text recognition.
 """
 
-# Elimating noise in text recogination
+# Elimination of overlapping and redundant centers
+for i in range(len(center_points)):
+    overlap_count = 0
+    for x in range(len(center_points) - i):
+        # Check for overlapping centers within a threshold
+        if (-10 < center_points[i][0] - center_points[x + i - overlap_count][0] < 10) and \
+           (-10 < center_points[i][1] - center_points[x + i - overlap_count][1] < 10) and \
+           (x + i - overlap_count != i):
+            center_points.remove(center_points[x + i - overlap_count])
+            bounding_boxes.remove(bounding_boxes[x + i - overlap_count])
+            detected_areas.remove(detected_areas[x + i - overlap_count])
+            overlap_count += 1
 
-w = 0
-for i in range(len(text)):
-    if text[i-w][4] == '\x0c' or text[i-w][4] == '\n\x0c' or text[i-w][4] == '':       #This noise removal code was fro tesseract
-        text.remove(text[i-w])
-        w = w+1
+    edge_count = 0
+    for x in range(len(center_points)):
+        count_centers = 0
+        for center in center_points:
+            # Check if the center is within the boundaries of the bounding box
+            if (bounding_boxes[x - edge_count][0] < center[0] < bounding_boxes[x - edge_count][0] + bounding_boxes[x - edge_count][2]) and \
+               (bounding_boxes[x - edge_count][1] < center[1] < bounding_boxes[x - edge_count][1] + bounding_boxes[x - edge_count][3]):
+                count_centers += 1
+        if count_centers >= 3:  # Remove boxes with excessive centers
+            center_points.remove(center_points[x - edge_count])
+            bounding_boxes.remove(bounding_boxes[x - edge_count])
+            detected_areas.remove(detected_areas[x - edge_count])
+            edge_count += 1
 
-#Combining the two list of centres and edges
-liobj = np.array(liobj)
-liobj = liobj.reshape(int(len(liobj)),2)
+# Noise reduction in text recognition results
+noise_count = 0
+for i in range(len(text_data)):
+    # Remove invalid or empty text results
+    if text_data[i - noise_count][4] in ('\x0c', '\n\x0c', ''):
+        text_data.remove(text_data[i - noise_count])
+        noise_count += 1
 
-lianother = np.array(lianother)
-lianother = lianother.reshape(int(len(lianother)), 5)
-#print(liobj, lianother)                                               #This is to find problem just before the merging of arrays
-shape =  np.concatenate((liobj, lianother),axis = 1)
-shape = shape.tolist()
+# Combine centers and bounding box edges
+center_points_array = np.array(center_points).reshape(len(center_points), 2)  # Reshape center points array
+bounding_boxes_array = np.array(bounding_boxes).reshape(len(bounding_boxes), 5)  # Reshape bounding box array
 
+# Concatenate center points and bounding box details
+shape_details = np.concatenate((center_points_array, bounding_boxes_array), axis=1).tolist()
 
-# This is the part making arrows for the program and writing mg and N. The values are writen in the next part
-for i in shape:
-    x,y,_,_,_,ym,_ = i
-    hc = ym - y
-    img = cv2.line(img, (x,y), (x, y+int(hc/1.5)) , (255,0,0), 3)
-    img = cv2.line(img, (x,y+int(hc/1.5)), (x-int(x/10),y+int(hc/1.8)),(255,0,0), 3)
-    img = cv2.line(img, (x,y+int(hc/1.5)), (x+int(x/10),y+int(hc/1.8)) ,(255,0,0),3)
-    img = cv2.putText(img, "mg", (x-20,y+int(hc/1.5)+20) ,cv2.FONT_HERSHEY_COMPLEX, 0.7, (255,0,0), 1)
-    img = cv2.line(img, (x,y), (x, y-int(hc/1.5)) , (0,0,255), 3)
-    img = cv2.line(img, (x,y-int(hc/1.5)), (x+int(x/10),y-int(hc/1.8)),(0,0,255), 3)
-    img = cv2.line(img, (x,y-int(hc/1.5)), (x-int(x/10),y-int(hc/1.8)) ,(0,0,255),3)
-    img = cv2.putText(img, "N", (x-20,y-int(hc/1.5)-10) ,cv2.FONT_HERSHEY_COMPLEX, 0.7, (0,0,255), 1)
+# Drawing mg (weight) and N (normal force) for shapes
+for shape in shape_details:
+    center_x, center_y, _, _, _, bottom_y, _ = shape
+    height_center = bottom_y - center_y  # Calculate center height for arrow scaling
+
+    # Draw mg (weight) arrow
+    resized_image = cv2.line(resized_image, (center_x, center_y), (center_x, center_y + int(height_center / 1.5)), (255, 0, 0), 3)
+    resized_image = cv2.line(resized_image, (center_x, center_y + int(height_center / 1.5)), (center_x - int(center_x / 10), center_y + int(height_center / 1.8)), (255, 0, 0), 3)
+    resized_image = cv2.line(resized_image, (center_x, center_y + int(height_center / 1.5)), (center_x + int(center_x / 10), center_y + int(height_center / 1.8)), (255, 0, 0), 3)
+    resized_image = cv2.putText(resized_image, "mg", (center_x - 20, center_y + int(height_center / 1.5) + 20), cv2.FONT_HERSHEY_COMPLEX, 0.7, (255, 0, 0), 1)
+
+    # Draw N (normal force) arrow
+    resized_image = cv2.line(resized_image, (center_x, center_y), (center_x, center_y - int(height_center / 1.5)), (0, 0, 255), 3)
+    resized_image = cv2.line(resized_image, (center_x, center_y - int(height_center / 1.5)), (center_x + int(center_x / 10), center_y - int(height_center / 1.8)), (0, 0, 255), 3)
+    resized_image = cv2.line(resized_image, (center_x, center_y - int(height_center / 1.5)), (center_x - int(center_x / 10), center_y - int(height_center / 1.8)), (0, 0, 255), 3)
+    resized_image = cv2.putText(resized_image, "N", (center_x - 20, center_y - int(height_center / 1.5) - 10), cv2.FONT_HERSHEY_COMPLEX, 0.7, (0, 0, 255), 1)
 
 
 #Finding where are different variables
