@@ -347,8 +347,6 @@ for arrow in sum_of_arrows:
 # Display the updated image with annotated arrows
 cv2.imshow('Shapes and Arrows', resized_image)
 
-
-
 """
 Elimination of Extra Centers and Noise Reduction
 Description:
@@ -357,30 +355,30 @@ Description:
 """
 
 # Elimination of overlapping and redundant centers
-for i in range(len(center_points)):
+for i in range(len(shape_centers)):  # Replace 'center_points' with 'shape_centers'
     overlap_count = 0
-    for x in range(len(center_points) - i):
+    for x in range(len(shape_centers) - i):
         # Check for overlapping centers within a threshold
-        if (-10 < center_points[i][0] - center_points[x + i - overlap_count][0] < 10) and \
-           (-10 < center_points[i][1] - center_points[x + i - overlap_count][1] < 10) and \
+        if (-10 < shape_centers[i][0] - shape_centers[x + i - overlap_count][0] < 10) and \
+           (-10 < shape_centers[i][1] - shape_centers[x + i - overlap_count][1] < 10) and \
            (x + i - overlap_count != i):
-            center_points.remove(center_points[x + i - overlap_count])
-            bounding_boxes.remove(bounding_boxes[x + i - overlap_count])
-            detected_areas.remove(detected_areas[x + i - overlap_count])
+            shape_centers.pop(x + i - overlap_count)  # Remove overlapping centers
+            bounding_boxes.pop(x + i - overlap_count)  # Remove corresponding bounding box
+            detected_areas.pop(x + i - overlap_count)  # Remove corresponding detected area
             overlap_count += 1
 
     edge_count = 0
-    for x in range(len(center_points)):
+    for x in range(len(shape_centers)):
         count_centers = 0
-        for center in center_points:
+        for center in shape_centers:
             # Check if the center is within the boundaries of the bounding box
             if (bounding_boxes[x - edge_count][0] < center[0] < bounding_boxes[x - edge_count][0] + bounding_boxes[x - edge_count][2]) and \
                (bounding_boxes[x - edge_count][1] < center[1] < bounding_boxes[x - edge_count][1] + bounding_boxes[x - edge_count][3]):
                 count_centers += 1
         if count_centers >= 3:  # Remove boxes with excessive centers
-            center_points.remove(center_points[x - edge_count])
-            bounding_boxes.remove(bounding_boxes[x - edge_count])
-            detected_areas.remove(detected_areas[x - edge_count])
+            shape_centers.pop(x - edge_count)  # Remove center
+            bounding_boxes.pop(x - edge_count)  # Remove bounding box
+            detected_areas.pop(x - edge_count)  # Remove detected area
             edge_count += 1
 
 # Noise reduction in text recognition results
@@ -388,15 +386,15 @@ noise_count = 0
 for i in range(len(text_data)):
     # Remove invalid or empty text results
     if text_data[i - noise_count][4] in ('\x0c', '\n\x0c', ''):
-        text_data.remove(text_data[i - noise_count])
+        text_data.pop(i - noise_count)  # Remove noisy or invalid text data
         noise_count += 1
 
 # Combine centers and bounding box edges
-center_points_array = np.array(center_points).reshape(len(center_points), 2)  # Reshape center points array
+shape_centers_array = np.array(shape_centers).reshape(len(shape_centers), 2)  # Reshape shape centers array
 bounding_boxes_array = np.array(bounding_boxes).reshape(len(bounding_boxes), 5)  # Reshape bounding box array
 
-# Concatenate center points and bounding box details
-shape_details = np.concatenate((center_points_array, bounding_boxes_array), axis=1).tolist()
+# Concatenate shape centers and bounding box details
+shape_details = np.concatenate((shape_centers_array, bounding_boxes_array), axis=1).tolist()
 
 # Drawing mg (weight) and N (normal force) for shapes
 for shape in shape_details:
@@ -414,6 +412,7 @@ for shape in shape_details:
     resized_image = cv2.line(resized_image, (center_x, center_y - int(height_center / 1.5)), (center_x + int(center_x / 10), center_y - int(height_center / 1.8)), (0, 0, 255), 3)
     resized_image = cv2.line(resized_image, (center_x, center_y - int(height_center / 1.5)), (center_x - int(center_x / 10), center_y - int(height_center / 1.8)), (0, 0, 255), 3)
     resized_image = cv2.putText(resized_image, "N", (center_x - 20, center_y - int(height_center / 1.5) - 10), cv2.FONT_HERSHEY_COMPLEX, 0.7, (0, 0, 255), 1)
+
 
 
 """
