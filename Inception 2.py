@@ -1,6 +1,5 @@
 """
 Program: FBD Diagram Analysis with OCR and Shape Detection
-Author: [Your Name]
 Description:
     This section of the code detects text and shapes in an image, leveraging EasyOCR
     and Tesseract for text recognition, and OpenCV for image processing and contour analysis.
@@ -122,8 +121,6 @@ def get_output_location():
         print("Invalid location. Please try again.")
         return get_output_location()
 
-
-
 """
 Program Section: Shape Detection and Labeling
 Author: [Your Name]
@@ -234,6 +231,7 @@ for contour in contours:
         cv2.drawContours(resized_image, [contour], 0, color, 1)
         cv2.putText(resized_image, shape_label, (centroid_x, centroid_y),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
+        
 
 # ------------------- Debugging and Outputs ------------------- #
 
@@ -254,7 +252,6 @@ Description:
     It calculates the direction of the arrow by analyzing the centroid and boundary points,
     and determines the angle of inclination using slope calculations and trigonometric functions.
 """
-
 # Arrow identification based on area thresholds
 if 1000 < contour_area < 5000:
     # Approximate the contour to a polygon
