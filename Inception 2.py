@@ -13,6 +13,7 @@ import pytesseract
 import os
 import numpy as np
 import easyocr as ey
+import math
 
 # Set the Tesseract executable path (Update this according to your system installation)
 pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
@@ -245,111 +246,113 @@ print(f"Shape Areas: {shape_areas}")
 cv2.imshow("Detected Shapes", resized_image)
 cv2.imshow("Contours", contour_overlay)
 
+"""
+Arrow Detection and Angle Calculation
+Description:
+    This section identifies arrows in an image based on contour properties such as area and shape.
+    It calculates the direction of the arrow by analyzing the centroid and boundary points,
+    and determines the angle of inclination using slope calculations and trigonometric functions.
+"""
 
+# Arrow identification based on area thresholds
+if 1000 < contour_area < 5000:
+    # Approximate the contour to a polygon
+    approximated_polygon = cv2.approxPolyDP(
+        contour, 0.01 * cv2.arcLength(contour, True), True
+    )
 
-    # ARROW IDENTIFICATION
+    # Check if the approximated polygon has a sufficient number of sides to be considered an arrow
+    if 6 <= len(approximated_polygon) <= 10:
+        # Initialize variables to calculate the bounding box and centroid
+        sum_x, sum_y = 0, 0
+        min_x, min_y = 1000, 1000
+        max_x, max_y = 0, 0
 
-    # This code down below os for arrow identification so to identif a arrow we are assigning it with a area limit 
-    # and the minimum number of side limit to eliminate athe noise. The to identify the direction of the force we 
-    # are finding the centroid of the arrow and then finding the minimum and maximum x,y to find the centre and then 
-    # as we know that points of arrow ar concentrated at the arrow side so the line between the centre and the centroid 
-    # is the direction and then we draw a line at the x coordinate to find the angle by equading the slopes. 
-    # Then to identify the coordrant of the angle we equaded the location of the centroid and the centre 
-    # Drawback of this logic is that I think it will final to identift the direction in case of flat arrow as the 
-    # concentrated point are close to the tail point it may be that the cetre gets to the opposite side of the centroid 
-    # as if we take a special case of arrow which is a triangle then the centre will be ahead of the centroid 
+        # Process each vertex of the approximated polygon
+        for vertex_index in range(len(approximated_polygon)):
+            # Extract x and y coordinates of the vertex
+            vertex_x = approximated_polygon[vertex_index][0][0]
+            vertex_y = approximated_polygon[vertex_index][0][1]
 
+            # Update sum of coordinates for centroid calculation
+            sum_x += vertex_x
+            sum_y += vertex_y
 
-    elif 1000<Area<5000:
-                app = cv2.approxPolyDP(contour, 0.01*cv2.arcLength(contour, True), True)
-                #cv2.drawContours(img, [app], 0, (255, 30, 50), 1)              #contours
+            # Update the bounding box coordinates
+            min_x = min(min_x, vertex_x)
+            min_y = min(min_y, vertex_y)
+            max_x = max(max_x, vertex_x)
+            max_y = max(max_y, vertex_y)
 
+        # Calculate the centroid and midpoints of the arrow
+        side_count = len(approximated_polygon) - 1
+        centroid = (sum_x // (side_count + 1), sum_y // (side_count + 1))
+        midpoint = ((min_x + max_x) // 2, (min_y + max_y) // 2)
+        offset_point = (((max_x + min_x) // 2) + 40, (min_y + max_y) // 2)
 
-                if 6<=len(app)<=10 :
-                        for i in range(len(app)):
+        # Draw visual aids on the image for debugging and validation
+        cv2.circle(resized_image, centroid, 3, (0, 255, 0), thickness=-1)  # Centroid
+        cv2.circle(resized_image, midpoint, 3, (0, 255, 0), thickness=-1)  # Midpoint
+        cv2.circle(resized_image, offset_point, 3, (0, 255, 0), thickness=-1)  # Offset point
+        cv2.rectangle(resized_image, (min_x - 15, min_y - 15), (max_x + 15, max_y + 15), (10, 40, 80), thickness=1)
+        cv2.line(resized_image, midpoint, centroid, (255, 120, 30))  # Line to centroid
+        cv2.line(resized_image, midpoint, offset_point, (255, 120, 30))  # Line to offset point
 
-                                ex = app.ravel()[int(2*i)]
-                                ey = app.ravel()[int(2*i+1)]
-                                sumx = sumx + ex
-                                sumy = sumy + ey
-                                if minx>ex:
-                                        minx =ex
-                                if miny>ey:
-                                        miny = ey
-                                if maxx<ex:
-                                        maxx = ex
-                                if maxy<ey:
-                                        maxy = ey  
-                                
-                                #wha = len(app)
-                                #print(app.ravel(),wha)
-                                #cv2.circle(img, (x,y), 10, (0, 0,255))
-                                #cv2.circle(img, (ex,ey), 2, (10, 10,255),-1)                   #Points
-                                side = int(len(app) - 1)
-                                if i==side :
-                                        
-                                        cv2.circle(img,(sumx//(side+1),sumy//(side+1)) , 3, (0,255,0), thickness = -1)
-                                        cv2.circle(img, ((minx+maxx)//2,(miny + maxy)//2) , 3, (0,255,0),thickness = -1) 
-                                        cv2.circle(img, ((((maxx + minx)//2)+40),(miny + maxy)//2) , 3, (0,255,0),thickness = -1) 
-                                        minimum.append([minx,miny])
-                                        maximum.append([maxx,maxy])
-                                        cv2.rectangle(img, (minx-15,miny-15), (maxx+15,maxy+15), (10,40,80), thickness = 1)
-                                        cv2.line(img, ((minx+maxx)//2,(miny + maxy)//2),(sumx//(side+1),sumy//(side+1)), (255,120,30))
-                                        cv2.line(img, ((minx+maxx)//2,(miny + maxy)//2),((((maxx + minx)//2)+40),(miny + maxy)//2), (255,120,30))
-                                        p2 = ((minx+maxx)//2,(miny + maxy)//2)
-                                        p3 = (sumx//(side+1),sumy//(side+1))
-                                        p1 = ((((maxx + minx)//2)+40),(miny + maxy)//2)
-                                        m1 = slope(p1,p2)
-                                        m2 = slope(p3,p2)
-                                        
-                                        ang = (m1 - m2)/(1 + m1*m2)
-                                        angle = math.atan(ang)
-                                        angle = math.degrees(angle)
-                                        
+        # Calculate slopes and the angle between the centroid and bounding points
+        slope_mid_to_offset = calculate_slope(offset_point, midpoint)
+        slope_mid_to_centroid = calculate_slope(centroid, midpoint)
+        tangent_value = (slope_mid_to_offset - slope_mid_to_centroid) / (
+            1 + slope_mid_to_offset * slope_mid_to_centroid
+        )
+        angle_in_radians = math.atan(tangent_value)
+        angle_in_degrees = math.degrees(angle_in_radians)
 
-                                        if p2[0]>=p3[0] :
-                                                if  p2[1]>=p3[1]:
-                                                        cv2.putText(img, "Angle="+str(180 + angle)[:5], (minx-15,miny-20), cv2.FONT_HERSHEY_COMPLEX, 0.4, (120,120,255))
-                                                        cen = (maxx,maxy)
-                                                        count = (minx, miny)
-                                                        plus = (10,10)
-                                                        sumt.append([sumx//(side+1),sumy//(side+1),minx,miny,maxx,maxy, float(str(180 + angle)[:6])])
+        # Determine the angle based on the quadrant of the arrow
+        if midpoint[0] >= centroid[0]:
+            if midpoint[1] >= centroid[1]:
+                angle = 180 + angle_in_degrees
+                label_position = (min_x - 15, min_y - 20)
+            else:
+                angle = 180 + angle_in_degrees
+                label_position = (min_x - 15, min_y - 20)
+        else:
+            if midpoint[1] >= centroid[1]:
+                angle = angle_in_degrees
+                label_position = (min_x - 15, min_y - 20)
+            else:
+                angle = 270 - angle_in_degrees
+                label_position = (min_x - 15, min_y - 20)
 
-                                                else: 
-                                                        cv2.putText(img, "Angle="+str(180 + angle)[:6], (minx-15,miny-20), cv2.FONT_HERSHEY_COMPLEX, 0.4, (120,120,255))
-                                                        cen = (maxx, miny)
-                                                        count = (minx, maxy)
-                                                        plus = (10, -10)
-                                                        sumt.append([sumx//(side+1),sumy//(side+1),minx,miny,maxx,maxy, float(str(180 + angle)[:6])])
-                                        else :
-                                                if p2[1]>=p3[1]:
-                                                        cv2.putText(img,"Angle="+ str(angle)[:5], (minx-15,miny-20), cv2.FONT_HERSHEY_COMPLEX, 0.4, (120,120,250))
-                                                        cen = (minx, maxy)
-                                                        count = (maxx,miny)
-                                                        plus = (-10,10)
-                                                        sumt.append([sumx//(side+1),sumy//(side+1),minx,miny,maxx,maxy, float(str(angle)[:5])])
+        # Annotate the image with the calculated angle
+        cv2.putText(resized_image, f"Angle={angle:.2f}", label_position, cv2.FONT_HERSHEY_COMPLEX, 0.4, (120, 120, 255))
 
-                                                else: 
-                                                        cv2.putText(img,"Angle="+ str(270 - angle)[:6], (minx-15,miny-20), cv2.FONT_HERSHEY_COMPLEX, 0.4, (100,100,255))
-                                                        cen = (minx,miny)
-                                                        count = (maxx, maxy)
-                                                        plus = (-10,-10)
-                                                        sumt.append([sumx//(side+1),sumy//(side+1),minx,miny,maxx,maxy, float(str(270 -angle)[:6])])
-                                        
-                                        cv2.line(img, cen, (cen[0], count[1]), (255,0,255), thickness = 1)   
-                                        cv2.line(img, cen, (count[0], cen[1]), (255,0,255), thickness = 1) 
-                                        cv2.line(img, (count[0], cen[1]), (count[0] + plus[0], cen[1] + 10), (255,0,255), thickness = 1)
-                                        cv2.line(img, (count[0], cen[1]), (count[0] + plus[0], cen[1] - 10 ), (255,0,255), thickness = 1)
-                                        cv2.line(img, (cen[0], count[1]), (cen[0] - 10, count[1] + plus[1]), (255,0,255), thickness = 1)
-                                        cv2.line(img, (cen[0], count[1]), (cen[0] + 10, count[1] + plus[1]), (255,0,255), thickness = 1)
+        # Draw additional visualization lines to highlight the arrow's direction
+        cv2.line(resized_image, midpoint, (midpoint[0], centroid[1]), (255, 0, 255), thickness=1)
+        cv2.line(resized_image, midpoint, (centroid[0], midpoint[1]), (255, 0, 255), thickness=1)
+        cv2.line(resized_image, (centroid[0], midpoint[1]), (centroid[0] + 10, midpoint[1] + 10), (255, 0, 255), thickness=1)
+        cv2.line(resized_image, (centroid[0], midpoint[1]), (centroid[0] - 10, midpoint[1] - 10), (255, 0, 255), thickness=1)
+        cv2.line(resized_image, (midpoint[0], centroid[1]), (midpoint[0] - 10, centroid[1] + 10), (255, 0, 255), thickness=1)
+        cv2.line(resized_image, (midpoint[0], centroid[1]), (midpoint[0] + 10, centroid[1] - 10), (255, 0, 255), thickness=1)
 
+        # Append the detected arrow's details to the list for further processing
+        arrow_details = [
+            centroid[0],  # Centroid x-coordinate
+            centroid[1],  # Centroid y-coordinate
+            min_x,        # Bounding box minimum x-coordinate
+            min_y,        # Bounding box minimum y-coordinate
+            max_x,        # Bounding box maximum x-coordinate
+            max_y,        # Bounding box maximum y-coordinate
+            round(angle, 2)  # Calculated angle (rounded to two decimals)
+        ]
+        sumt.append(arrow_details)
 
+        # Mark the detected arrow on the image
+        cv2.circle(resized_image, (min_x, min_y), 2, (10, 10, 255), thickness=-1)  # Mark minimum point
+        cv2.putText(resized_image, "Arrow", (min_x, min_y - 35), cv2.FONT_HERSHEY_COMPLEX, 0.5, (0, 255, 255))
 
-                        cv2.circle(img, (minx,miny), 2, (10, 10,255),-1)                        
-                        cv2.putText(img,"Arrow", (minx,miny -35), cv2.FONT_HERSHEY_COMPLEX, 0.5, (0,255,255))
+# Display the updated image with annotated arrows and shapes
+cv2.imshow('Shapes and Arrows', resized_image)
 
-
-cv2.imshow('shapes', img)
 
 # ELIMINATION FO EXTRA CENTRES BEING DETECTED
 
