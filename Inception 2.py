@@ -13,6 +13,7 @@ import pytesseract
 import os
 import numpy as np
 import easyocr as ey
+import re
 import math
 
 # Set the Tesseract executable path (Update this according to your system installation)
@@ -578,7 +579,7 @@ Description:
 entries_to_remove = []
 
 # Loop through the final list of objects and forces to associate mass or unknown variables
-for index, entry in enumerate(final_data):
+for index, entry in enumerate(final_fbd_data):
     # Check if the entry is a force or an unknown variable
     if entry[7] == "N" or entry[7] == "vari":
         entries_to_remove.append(index)  # Mark the entry for removal
@@ -587,7 +588,7 @@ for index, entry in enumerate(final_data):
         min_distance = float('inf')  # Initialize minimum distance
 
         # Iterate through the final data to find the closest mass
-        for mass_index, mass_entry in enumerate(final_data):
+        for mass_index, mass_entry in enumerate(final_fbd_data):
             if mass_entry[7] == "kg":  # Only compare with mass entries
                 # Calculate the distances from the force to the front and back of the mass
                 front_distance = math.sqrt((mass_entry[0] - entry[2])**2 + (mass_entry[1] - entry[3])**2)
@@ -606,20 +607,20 @@ for index, entry in enumerate(final_data):
                     is_first = False
 
         # Append the force data to the closest mass entry
-        final_data[closest_index].extend([entry[-3], entry[-2], entry[-1]])
+        final_fbd_data[closest_index].extend([entry[-3], entry[-2], entry[-1]])
 
 # Remove entries that have been associated with masses
 for i, index in enumerate(entries_to_remove):
-    final_data.pop(index - i)
+    final_fbd_data.pop(index - i)
 
-print("The final compressed form with mass and forces associated:\n", final_data)
+print("The final compressed form with mass and forces associated:\n", final_fbd_data)
 
 # --- Compute Force Components for Each Body ---
 force_components = []  # List to store resultant force components for each body
 unknown_variables = []  # List to track unknown variables for resolution
 
 # Process each body in the final data
-for body_index, body_entry in enumerate(final_data):
+for body_index, body_entry in enumerate(final_fbd_data):
     total_entries = len(body_entry)
     if total_entries >= 10:  # Ensure sufficient data is present for force computation
         resultant_x = 0  # X-component of the resultant force
@@ -687,214 +688,112 @@ print("Force components (final):", force_components)
 print("Unknown variables:", unknown_variables)
 
 
-#SURFACE IDENTIFICATION
+# SURFACE IDENTIFICATION
+# This section calculates the normal forces and friction forces acting on each object.
+# An object is considered "above" another if its center lies between the minimum and maximum x-coordinates of the lower object
+# and within the vertical bounds of the lower object's rectangle.
 
-#The surfaces of the object will be their low and upper side that means if a object is above another object
-#then the centre of the above object should be located between (minimum x of the lower object,0) and 
-# (maximum of x of the rectangle, minimum of y of the rectangle)
+normal_forces = []  # To store calculated normal forces for each object
+friction_forces = []  # To store calculated friction forces for each object
+object_index = 0  # Index to track the current object
 
-normal = []
-friction = []
-i= 0
+# Iterate over all objects (referred to as "upper objects")
+for upper_object in final_fbd_data:
+    # Calculate initial normal force (weight of the object minus Y-component of forces)
+    normal_force = upper_object[6] * 10 - force_components[object_index][1]
+    total_friction_force = force_components[object_index][0]  # Start with X-component of forces
 
-for up in final:
-    nor = up[6]*10 - finalcom[i][1]
-    j=-1
-    frict = finalcom[i][0]
-    for down in final:
-        j = j+1
-        if (up[2]<down[0]<up[4]) and (0<down[1]<up[3]) and i != j:
-            nor = nor + down[6]*10 - finalcom[j][1]
-            frict = frict + finalcom[j][0]
-    i = i+ 1
-    normal.append(float(str(nor)[:5]))
+    # Compare with all other objects (referred to as "lower objects")
+    for lower_index, lower_object in enumerate(final_fbd_data):
+        if (upper_object[2] < lower_object[0] < upper_object[4]) and \
+           (0 < lower_object[1] < upper_object[3]) and (object_index != lower_index):
+            # Add contribution of the lower object's normal force
+            normal_force += lower_object[6] * 10 - force_components[lower_index][1]
+            # Add friction force contribution from the lower object
+            total_friction_force += force_components[lower_index][0]
 
-    if frict>0:
-        friction.append(float(str(frict)[:5]))
-    else:
-        friction.append(float(str(frict)[:6]))
-print("normal : ",normal)
-print("friction force required to keep the system static : ",friction)
+    object_index += 1
+    # Append the calculated forces
+    normal_forces.append(float(f"{normal_force:.5f}"))
+    friction_forces.append(float(f"{total_friction_force:.5f}") if total_friction_force > 0 else float(f"{total_friction_force:.6f}"))
 
+# Display calculated normal and friction forces
+print("Normal Forces: ", normal_forces)
+print("Friction Forces Required to Keep the System Static: ", friction_forces)
 
-#Display of values of normal and weight 
-c=0
-for i in shape:
-    x = i[0]
-    img = cv2.putText(img, "   ="+str(i[6]*10)+" N", (i[0]-20,i[1]+int(i[5]-i[3])//2-10) ,cv2.FONT_HERSHEY_COMPLEX, 0.7, (255,0,0), 1)
-    img = cv2.putText(img, "  ="+str(normal[c])+" N", (i[0]-20,i[1]-int(i[5]-i[3])//2+20) ,cv2.FONT_HERSHEY_COMPLEX, 0.7, (0,0,255), 1)
-    c=c+1
+# Display values of normal forces and weights on the image
+counter = 0
+for shape_entry in object_shapes:
+    x_center = shape_entry[0]
+    y_center_top = shape_entry[1] - int((shape_entry[5] - shape_entry[3]) // 2) + 20
+    y_center_bottom = shape_entry[1] + int((shape_entry[5] - shape_entry[3]) // 2) - 10
 
+    # Display normal force and weight
+    image = cv2.putText(image, f"   ={shape_entry[6] * 10} N", (x_center - 20, y_center_bottom), cv2.FONT_HERSHEY_COMPLEX, 0.7, (255, 0, 0), 1)
+    image = cv2.putText(image, f"  ={normal_forces[counter]} N", (x_center - 20, y_center_top), cv2.FONT_HERSHEY_COMPLEX, 0.7, (0, 0, 255), 1)
+    counter += 1
 
-#Logic not working 
-"""
-li1 = np.array(lianother)
-litomany = li1.flatten()
-liop = len(litomany)/4
-linew = []
-for q in range(int(liop)):
-    for var in range(int(liop)):
+# Calculate the coefficient of friction for each object
+coefficients_of_friction = []  # To store calculated coefficients of friction
+for index, normal_force in enumerate(normal_forces):
+    friction = friction_forces[index]
+    coefficient = abs(friction / normal_force)
+    coefficients_of_friction.append(float(f"{coefficient:.5f}"))
 
-        if lianother[q][0]<=lianother[var][0] & lianother[q][1]<=lianother[var][1] & var != i  &  (lianother[q][0]+lianother[q][2])<(lianother[var][0]+lianother[var][2]) &  (lianother[q][1]+lianother[q][3])<(lianother[var][1]+lianother[var][3]):
-            lianother.remove(lianother[var])
-""
-# Logic not working
+print("Coefficient of Friction for the respective bodies: ", coefficients_of_friction)
 
-#Method 2 of storing and displaying data
+# Visualize friction and coefficients of friction on the image
+for index, friction_force in enumerate(friction_forces):
+    if friction_force > 0:
+        # Visualize friction force (positive)
+        image = cv2.line(image, (final_fbd_data[index][2], final_fbd_data[index][5]), 
+                         (final_fbd_data[index][2] - 60, final_fbd_data[index][5]), (120, 0, 180), thickness=2)
+        image = cv2.line(image, (final_fbd_data[index][2] - 60, final_fbd_data[index][5]), 
+                         (final_fbd_data[index][2] - 50, final_fbd_data[index][5] + 10), (120, 0, 180), thickness=2)
+        image = cv2.line(image, (final_fbd_data[index][2] - 60, final_fbd_data[index][5]), 
+                         (final_fbd_data[index][2] - 50, final_fbd_data[index][5] - 10), (120, 0, 180), thickness=2)
+        image = cv2.putText(image, f"{friction_force} N", (final_fbd_data[index][2] - 130, final_fbd_data[index][5]), 
+                            cv2.FONT_HERSHEY_COMPLEX, 0.5, (255, 0, 255), 1)
+        image = cv2.putText(image, f"u={coefficients_of_friction[index]}", 
+                            (final_fbd_data[index][2] - 100, final_fbd_data[index][1]), cv2.FONT_HERSHEY_COMPLEX, 0.5, (0, 255, 0), 1)
+    elif friction_force < 0:
+        # Visualize friction force (negative)
+        image = cv2.line(image, (final_fbd_data[index][4], final_fbd_data[index][5]), 
+                         (final_fbd_data[index][4] + 100, final_fbd_data[index][5]), (120, 0, 180), thickness=2)
+        image = cv2.line(image, (final_fbd_data[index][4] + 100, final_fbd_data[index][5]), 
+                         (final_fbd_data[index][4] + 90, final_fbd_data[index][5] + 10), (120, 0, 180), thickness=2)
+        image = cv2.line(image, (final_fbd_data[index][4] + 100, final_fbd_data[index][5]), 
+                         (final_fbd_data[index][4] + 90, final_fbd_data[index][5] - 10), (120, 0, 180), thickness=2)
+        image = cv2.putText(image, f"{abs(friction_force)} N", 
+                            (final_fbd_data[index][4] + 110, final_fbd_data[index][5]), cv2.FONT_HERSHEY_COMPLEX, 0.5, (255, 0, 255), 1)
+        image = cv2.putText(image, f"u={coefficients_of_friction[index]}", 
+                            (final_fbd_data[index][4] + 150, final_fbd_data[index][1]), cv2.FONT_HERSHEY_COMPLEX, 0.5, (0, 255, 0), 1)
 
-#print(lianother)
-f = open("recognized.txt", "r")
-read = f.read()
-read = read.replace(" ", "")
-read = read.replace("\n", "")
-read = read.replace("", "")
-#print(read)
-f.close()
+# Save the image and analysis results if requested by the user
+save_choice = input("Do you want to save the FBD analysis to your device? (Y/N): ").strip().upper()
 
-digit = re.compile('\D')
-n = digit.split(read)
-num = []
-for i in n:
-    if i != '':
-        num.append(i)
-        
-digit = re.compile('\d')
-a = digit.split(read)
-alpha = []
-for i in a:
-    if i != '':
-        alpha.append(i)
-print(num)        
-print(alpha)
+# Save results if the user agrees
+if save_choice == "Y":
+    folder_name = input("Enter the folder name to save the files: ")
+    save_directory = r"save dir"  # Function to prompt user for save location
 
-kg = []
-keyset = []
-for i in alpha:
-    if i.upper() == 'KG':
-        kg.append(i)
-if len(liobj) == 1:
-    keyset.append(str(liobj[0])+";" + str(num[0])) 
-elif len(liobj) == 2:
-    if len(kg) == 1:
-        if liobj[0][1]>liobj[1][1]:
-            keyset.append(str(liobj[1])+";"+str(num[0]))
-        else:
-            keyset.append(str(liobj[0])+";"+str(num[0]))
-    elif len(kg) == 2:
-        if liobj[0][1]>liobj[1][1]:
-            keyset.append(str(liobj[1])+";"+str(num[0]))
-            keyset.append(str(liobj[0])+";" + str(num[0]))
-        else:
-            keyset.append(str(liobj[0])+";"+str(num[1]))
-            keyset.append(str(liobj[1])+";" + str(num[1]))  
-else:
-    pass
+    os.makedirs(os.path.join(save_directory, folder_name), exist_ok=True)
+    save_path = os.path.join(save_directory, folder_name)
 
-if len(keyset) == 1:
-    s = keyset[0]
-    key = s.split(";")
-    img = cv2.putText(img, "   ="+str(int(key[1])*10)+" N", (liobj[0][0]-20,liobj[0][1]+int(h/1.5)+20) ,cv2.FONT_HERSHEY_COMPLEX, 0.7, (255,0,0), 1)
-    img = cv2.putText(img, "  ="+str(int(key[1])*10)+" N", (liobj[0][0]-20,liobj[0][1]-int(h/1.5)-20) ,cv2.FONT_HERSHEY_COMPLEX, 0.7, (0,0,255), 1)
-    img = cv2.putText(img, "N=mg="+str(int(key[1])*10)+" N", (10,25), cv2.FONT_HERSHEY_COMPLEX, 0.8, (30, 120, 255), 1)
+    # Save the annotated image
+    cv2.imwrite(os.path.join(save_path, "OUTPUT_IMG.png"), image)
 
+    # Save the analysis results in a text file
+    with open(os.path.join(save_path, "OUTPUT_TXT.txt"), "w") as result_file:
+        for idx, components in enumerate(force_components):
+            result_file.write(f"Analysis of Object {idx + 1}:\n")
+            result_file.write(f"Equivalent X-Component: {components[0]:.5f}\n")
+            result_file.write(f"Equivalent Y-Component: {components[1]:.5f}\n")
+            result_file.write(f"Normal Reaction: {normal_forces[idx]}\n")
+            result_file.write(f"Minimum Coefficient of Friction: {coefficients_of_friction[idx]}\n\n")
 
-elif len(keyset) == 2:
-    nor = 0
-    l=-1
-
-    for i in range(2):
-        l +=1
-        kyu = keyset[i]
-        #print(kyu)
-        key = kyu.split(";")
-        x =  key[0]
-        nor += int(key[1])
-        st = re.compile('\D')
-        dig = st.split(x)
-        dhinchak = []
-        for i in dig:
-            if i != '':
-                dhinchak.append(i)
-        x = dhinchak[0]
-        y =dhinchak[1]
-        
-        if l==0:
-            img = cv2.putText(img,"BODY1: n=mg="+str(int(nor)*10)+" N", (10,25), cv2.FONT_HERSHEY_COMPLEX, 0.5, (30, 120, 255), 1)
-        else:
-            img = cv2.putText(img,"BODY2: Mg+mg=N="+str(int(nor)*10)+" N", (10,675), cv2.FONT_HERSHEY_COMPLEX, 0.5, (30, 120, 255), 1)
-        img = cv2.putText(img, "   ="+str(int(key[1])*10)+" N", (int(x)-20,int(y)+int(h/1.5)+20) ,cv2.FONT_HERSHEY_COMPLEX, 0.7, (255,0,0), 1)
-        img = cv2.putText(img, "   ="+str(int(nor)*10)+" N", (int(x)-20,int(y)-int(h/1.5)-20) ,cv2.FONT_HERSHEY_COMPLEX, 0.7, (0,0,255), 1)
-"""
-
-
-#For finding the cofficient of restitution on the body
-i = 0 
-cof = []
-for  x in normal:
-    coffof = friction[i]/x
-    i = i+1
-    cof.append(abs(float(str(coffof)[:5])))
-
-print("Cofficient of friction on the respective bodies should be :",cof) 
-
-
-# This part is writing the cofficient of restitution and the frictional force needed to keep the body in rest
-i = 0 
-for x in friction:
-    if x>0:
-        img = cv2.line(img, (final[i][2], final[i][5]),(final[i][2] - 60, final[i][5]),(120,0,180),thickness = 2 )
-        img = cv2.line(img, (final[i][2] - 60, final[i][5]), (final[i][2] - 50, final[i][5]+10),(120,0,180),thickness = 2 )
-        img = cv2.line(img, (final[i][2] - 60, final[i][5]), (final[i][2] - 50, final[i][5]-10),(120,0,180),thickness = 2 )
-        img = cv2.putText(img,str(x)+" N", (final[i][2]-130, final[i][5]),cv2.FONT_HERSHEY_COMPLEX,0.5,(255,0,255),1)
-        img = cv2.putText(img,"u="+str(cof[i]), (final[i][2]-100, final[i][1]),cv2.FONT_HERSHEY_COMPLEX,0.5,(0,255,0),1)
-    elif x==0:
-        pass
-    else:
-        img = cv2.line(img, (final[i][4], final[i][5]),(final[i][4] + 100, final[i][5]),(120,0,180),thickness = 2 )
-        img = cv2.line(img, (final[i][4] + 100, final[i][5]), (final[i][4]+ 90, final[i][5]+10),(120,0,180),thickness = 2 )
-        img = cv2.line(img, (final[i][4] + 100, final[i][5]), (final[i][4] + 90, final[i][5]-10),(120,0,180),thickness = 2 )
-        img = cv2.putText(img,str(abs(x)) + " N", (final[i][4]+110, final[i][5]),cv2.FONT_HERSHEY_COMPLEX,0.5,(255,0,255),1) 
-        img = cv2.putText(img,"u="+str(cof[i]), (final[i][4]+150, final[i][1]),cv2.FONT_HERSHEY_COMPLEX,0.5,(0,255,0),1) 
-    i = i + 1
-
-# Asking if the user wants to save the image
-choice = input("Do you want to save the FBD made on your device(Y/N)")
-
-OLDDIR = os.getcwd()
-OLDDIR = OLDDIR.replace("\\","/")
-
-if choice == "Y" or choice == 'y':
-    filename = input("Please enter the folder name")
-    NEWDIR = locat()
-    NEWDIR = NEWDIR.replace("\\","/")
-
-    os.chdir(NEWDIR)
-    os.mkdir(filename)
-    
-    os.chdir(NEWDIR+r"/"+filename)
-    cv2.imwrite("OUTPUT IMG.png", img)
-    
-    f = open("OUTPUT TXT.txt", 'w')
-
-    for i in range(len(finalcom)):
-        INTRO = "The analysis done on the first figure :-\n"
-        XCOMP = str("\nThe equivalent X-component is " + str(finalcom[i][0])[:5])
-        YCOMP = str("\nThe equivalent Y-component is " +  str(finalcom[i][1])[:5])
-        NORML = str("\nThe Normal Reaction is "+ str(normal[i]))
-        FCOFF = str("\nThe minimum cofficient of friction to keep the system static: " + str(cof[i])+"\n\n")
-        
-        f.write(INTRO)
-        f.write(XCOMP)
-        f.write(YCOMP)
-        f.write(NORML)
-        f.write(FCOFF)
-
-if choice == 'Y' or choice == 'y':
-    f.close()
-
-# The Standard end statement of a program
-os.chdir(OLDDIR)
+# Cleanup and finalize
 os.remove("recognized.txt")
-cv2.imshow("end", img)
+cv2.imshow("Result", image)
 cv2.waitKey(0)
 cv2.destroyAllWindows()
