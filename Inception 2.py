@@ -562,210 +562,129 @@ for entry in combined_data:
 
 # Display results for debugging and verification
 print("Combined Data:", combined_data)
-print("Final FBD Data:", final_fbd_data)
+print("Final FBD Data:", final_fbd_data)      
 
 
-
-#PREVIOUS TRYS
-
-# Here are two logics which are commented in the first one i have a doubt that when i am giving two values to unpack 
-# but still a error is being shown . In the second part my approch was to target the object and find the nearest force
-# in this method the drawbacks are that if their is only one force present and twobodies are present then both of the 
-# bodies will claim that it is a force for that body and if forces are more than the number of objects then some forces 
-# will be left out. So heres the point froce can be applied on only one body but bosy can have multiple forces. 
-# So the third logic which is currently active working one find the object closest to the force and then assigning the 
-# value of force to the body
 """
-for  _,i in final:    
-    num = 0
-    w = 0
-    z=0
-    for x, _ in final:
-        if i != None:
-            if x != None:
-                                
-                xf = (i[2] - x[0])
-                yf = (i[3] - x[1])
-                xb = (i[4] - x[0])
-                yb = (i[5] - x[1])
-
-                distf = math.sqrt(xf*xf + yf*yf)
-                distb = math.sqrt(xb*xb + yb*yb)
-
-                if distf>=distb:
-                    dist = distf
-                else:
-                    dist = distb                                       #This part is not okay
-                
-                if z == -1 :
-                    if mindist > dist:
-                        mindist = dist
-                        num = w
-                        
-                else:
-                    mindist = dist
-                    num = 0
-                    z = -1
-                    
-                w = w+1
-        
-        if w == len(final)-2:
-            print(mindist)
-            final[num].append(i[-3])
-            final[num].append(i[-2])
-            final[num].append(i[-1])
-            
+Mass and Angle Storage with Force Components
+Description:
+    This section processes detected data to:
+    1. Associate forces and angles with corresponding bodies.
+    2. Compute the components of forces (X and Y directions) applied on each body.
+    3. Identify unknown variables for further processing.
 """
-"""
-for x,_ in final:                           #Here x is mass and y is angle
-    w=0
-    if x != None:
-        for _ , i in final:
-                        
-                if i != None:
-                    xf = (x[0] - i[2])
-                    yf = (x[1] - i[3])
-                    xb = (x[0] - i[4])
-                    yb = (x[1] - i[5])
-                    distf = math.sqrt(xf*xf + yf*yf)
-                    distb = math.sqrt(xb*xb + yb*yb)                         #This part is also ok
-                    if distf >= distb:
-                        dist = distf
-                    else :
-                        dist = distb
-                    if w != 0:
-                        w = -1
-                        if mindist > dist:
-                            mindist = dist
-                            arr = [i[-3],i[-2],i[-1]]
-                            
-                            
-                    else:
-                        mindist = dist
-                        w = -1
-                        arr = [i[-3],i[-2],i[-1]]
-        
-        if w == -1:              
-            x.append(arr[0])
-            x.append(arr[1])
-            x.append(arr[2])
-            
 
-print()
+# Initialize a list to track entries to be removed
+entries_to_remove = []
 
-killcount = []
-for num , (trash,_) in enumerate(final):                
-    if trash == None:
-        killcount.append(num)
+# Loop through the final list of objects and forces to associate mass or unknown variables
+for index, entry in enumerate(final_data):
+    # Check if the entry is a force or an unknown variable
+    if entry[7] == "N" or entry[7] == "vari":
+        entries_to_remove.append(index)  # Mark the entry for removal
+        is_first = True  # Flag for the first distance comparison
+        closest_index = 0  # Index of the closest mass entry
+        min_distance = float('inf')  # Initialize minimum distance
 
-w=0
-for num in killcount:
-    final.remove(final[num -w])                                  #This part is ok 
-    w = w+1
-""" 
+        # Iterate through the final data to find the closest mass
+        for mass_index, mass_entry in enumerate(final_data):
+            if mass_entry[7] == "kg":  # Only compare with mass entries
+                # Calculate the distances from the force to the front and back of the mass
+                front_distance = math.sqrt((mass_entry[0] - entry[2])**2 + (mass_entry[1] - entry[3])**2)
+                back_distance = math.sqrt((mass_entry[0] - entry[4])**2 + (mass_entry[1] - entry[5])**2)
 
-print(final)       
+                # Select the smaller distance
+                distance = min(front_distance, back_distance)
 
+                # Update the closest mass if a smaller distance is found
+                if not is_first and distance < min_distance:
+                    min_distance = distance
+                    closest_index = mass_index
+                elif is_first:
+                    min_distance = distance
+                    closest_index = 0
+                    is_first = False
 
-# Storing both mass and angle in one variable the current successor logic of the above logics
-remove = []
-for c,i in enumerate(final):
-    if i[7] == "N" or i[7] == "vari":
-        remove.append(c)
-        w = 0
-        num = 0
-        count = 0
+        # Append the force data to the closest mass entry
+        final_data[closest_index].extend([entry[-3], entry[-2], entry[-1]])
 
-        for  x in final:
-            count = count + 1
+# Remove entries that have been associated with masses
+for i, index in enumerate(entries_to_remove):
+    final_data.pop(index - i)
 
-            if x[7] == "kg":
-                xf = (x[0] - i[2])
-                yf = (x[1] - i[3])
-                xb = (x[0] - i[4])
-                yb = (x[1] - i[5])
+print("The final compressed form with mass and forces associated:\n", final_data)
 
-                distf = math.sqrt(xf*xf + yf*yf)
-                distb = math.sqrt(xb*xb + yb*yb)
+# --- Compute Force Components for Each Body ---
+force_components = []  # List to store resultant force components for each body
+unknown_variables = []  # List to track unknown variables for resolution
 
-                if distf <= distb:
-                    dist = distf
-                else :
-                    dist = distb
-                
-                if w!=0:
-                    w = w-1
-                    if mindist > dist:
-                        mindist = dist
-                        num  = count -1 
-                
-                else:
-                    w = w-1
-                    mindist = dist
-                    num =0
-            
-            if count == len(final) - 1:
-                #print(num)
-                #print(mindist)                                #This was used to detect the big > and < blunder in distance comparision         
-                final[num].append(i[-3])
-                final[num].append(i[-2])
-                final[num].append(i[-1])                
-#print(remove)                                                 
+# Process each body in the final data
+for body_index, body_entry in enumerate(final_data):
+    total_entries = len(body_entry)
+    if total_entries >= 10:  # Ensure sufficient data is present for force computation
+        resultant_x = 0  # X-component of the resultant force
+        resultant_y = 0  # Y-component of the resultant force
 
-#This print statement is that what values are to be removed from array
-for x in range(len(remove)):
-    final.remove(final[remove[x] - x])
-print("The final compressed form to present data extracted form the image about the bodies:\n",final)
+        # Loop through the forces associated with the body
+        for i in range((total_entries - 9) // 3):
+            force_magnitude = body_entry[9 + i * 3]
+            force_angle = math.radians(body_entry[11 + i * 3])  # Convert angle to radians
 
+            if body_entry[10 + i * 3] == "N":  # Process forces
+                # Compute force components
+                resultant_x += force_magnitude * math.cos(force_angle)
+                resultant_y += force_magnitude * math.sin(force_angle)
+            elif body_entry[10 + i * 3] == "vari":  # Track unknown variables
+                unknown_variables.append([body_index, force_magnitude, body_entry[11 + i * 3]])
 
-#This is the program to find the components of forces in appied on each body
-finalcom = []
-unknowns = []
+        # Store the resultant force components
+        force_components.append([resultant_x, resultant_y])
 
-c=0
-for x in final:
-    y = int(len(x))
-    if y >=10:
-        eqx = 0 
-        eqy = 0 
-        for i in range(int((y-9)/3)):
-            if x[10+(i*3)] == "N":
-                xcom = (x[9+(i*3)])*(math.cos(math.radians(x[11+(i*3)])))
-                ycom = (x[9+(i*3)])*(math.sin(math.radians(x[11+(i*3)])))
-                eqx = eqx + xcom
-                eqy = eqy + ycom
-            elif x[10+(i*3)] == "vari":
-                unknowns.append([c,x[9+(i*3)],x[11+(i*3)]])
+print("Resultant force components for each body (X, Y):", force_components)
+print("Unknown variables requiring resolution:", unknown_variables)
 
-        c = c+1
-        finalcom.append([eqx,eqy])
+# --- Function to Extract Data for Unknown Variables ---
+def extract_variable_data():
+    """
+    Extract additional information about unknown variables from the user.
+    Prompts the user to resolve angles or provide missing data for variables.
+    """
+    # Predefined set of standard angles for matching
+    standard_angles = [0, 30, 45, 60, 90, 120, 150, 180, 210, 225, 240, 270, 300, 315, 330, 360]
 
-print("components of the forces applied : ",finalcom)
-print("variables:",unknowns)
+    # Iterate through unknown variables
+    for variable in unknown_variables:
+        angle_differences = [abs(variable[2] - angle) for angle in standard_angles]
+        closest_angle = standard_angles[angle_differences.index(min(angle_differences))]
+        print(f"Closest standard angle for variable {variable[1]}: {closest_angle}")
 
+        # Prompt user for additional details
+        user_input = int(input(
+            f"Information related to variable {variable[1]}:\n"
+            "1. Angle is given.\n"
+            "2. No information is available.\n"
+            "3. Both value and angle are known.\n"
+            "4. The variable is irrelevant.\n"
+            "Enter the most suitable option: "
+        ))
 
-#This is a fuction desizned extract data related to the variables from the user. This is not active and is under proposal phase.
-def extraction():
-    minimum = []
-    ANG = [0, 30, 45, 60, 90, 120, 150, 180, 210, 225, 240, 270, 300, 315, 330, 360]
-    for un in unknowns:
-        for a in ANG:
-            minimum.append(un[2] - a)
-        print(ANG[minimum.index(min(minimum))])  
-
-    for x in unknowns:
-        s = input("Information related to",x[1],"this Variable\nPress 1 if the variable angle is given\nPress 2 if the variable has no information given\nPress 3 if its a value with both angle and value known\nPress 4 if their is no such variable in the question\n\nPlease enter the most suitable option : ")
-        if s==3:
-            val = input("Please enter the value of",x[1],"with unit")
-            ang = input("Please enter the angle at which",x[1],"force is pointing")
-        elif s==1:
-            ang = input("Please enter the angle at which",x[1],"force is pointing")
-        elif s == 2:
-            pass
-        elif s == 4:
-            pass
+        # Process user input
+        if user_input == 3:
+            value = input(f"Enter the value for variable {variable[1]} (with unit): ")
+            angle = input(f"Enter the angle for variable {variable[1]}: ")
+        elif user_input == 1:
+            angle = input(f"Enter the angle for variable {variable[1]}: ")
+        elif user_input == 2:
+            print("No information provided for the variable.")
+        elif user_input == 4:
+            print(f"Variable {variable[1]} marked as irrelevant.")
         else:
-            extraction()
+            print("Invalid option. Please try again.")
+            extract_variable_data()
+
+# Print outputs for verification
+print("Force components (final):", force_components)
+print("Unknown variables:", unknown_variables)
 
 
 #SURFACE IDENTIFICATION
