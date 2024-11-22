@@ -122,108 +122,129 @@ def get_output_location():
 
 
 
-blank = np.zeros(img.shape, dtype='uint8')
+"""
+Program Section: Shape Detection and Labeling
+Author: [Your Name]
+Description:
+    This section detects shapes in an image using OpenCV contours, calculates their properties (area, center),
+    and labels them based on the number of sides. The results are visualized by drawing contours and annotating shapes.
+"""
 
-# Resizing the image 
-hgt = img1.shape[0]
-wdt = img1.shape[1]
+# Initialize a blank image for visualizing contours
+contour_overlay = np.zeros(processed_image.shape, dtype='uint8')
 
-if hgt>500 & wdt>500:
-    img = cv2.resize(img1, (700,700), interpolation = cv2.INTER_AREA)
+# Get the height and width of the original image
+image_height, image_width = input_image.shape[:2]
 
+# Resize the image for uniform processing
+if image_height > 500 and image_width > 500:
+    resized_image = cv2.resize(input_image, (700, 700), interpolation=cv2.INTER_AREA)
 else:
-    img = cv2.resize(img1, (700,700), interpolation=cv2.INTER_CUBIC) 
+    resized_image = cv2.resize(input_image, (700, 700), interpolation=cv2.INTER_CUBIC)
 
-blank = np.zeros(img.shape, dtype='uint8')          
-eli = []
+# Initialize lists for storing detected shape properties
+bounding_boxes = []  # To store bounding box coordinates for each shape
+shape_centers = []   # To store the center coordinates of each shape
+shape_areas = []     # To store the areas of contours
 
+# Convert the image to grayscale
+grayscale_image = cv2.cvtColor(resized_image, cv2.COLOR_BGR2GRAY)
 
-# converting image into grayscale image
-gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-arr = np.array(gray)
-
-#To find the average brigthness in a image
+# Optionally calculate the average brightness of the grayscale image (commented for now)
 """
-avg = np.sum(arr, dtype= np.int32)//490000
-print(avg)
+average_brightness = np.sum(grayscale_image, dtype=np.int32) // (grayscale_image.shape[0] * grayscale_image.shape[1])
+print("Average Brightness:", average_brightness)
 """
 
+# Apply thresholding to create a binary image
+_, binary_image = cv2.threshold(grayscale_image, 125, 255, cv2.THRESH_BINARY)
 
-# setting threshold of gray image
-_, threshold = cv2.threshold(gray, 125, 255, cv2.THRESH_BINARY)
-#threshold = cv2.erode(threshold1, (7,7), iterations=4)
-#cv2.imshow("hello", threshold)                                       #Here many hit and trials where done to find the best formate for furthur procedure
+# Find contours in the binary image
+contours, _ = cv2.findContours(binary_image, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 
-# using a findContours() function
-contours, _ = cv2.findContours(
-	threshold, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-cv2.drawContours(blank, contours, -1, (0,0,255), 1)
-#cv2.imshow("draw", blank)
+# Draw all contours on the blank overlay image for visualization
+cv2.drawContours(contour_overlay, contours, -1, (0, 0, 255), 1)
 
+# ------------------- Shape Detection and Classification ------------------- #
 
-# This part of the program is responsible for detection of all the shapes and arrows whichh are detected
-
-i = 0
-sumt = []
-liobj =[]
+# Counter for skipping irrelevant contours (e.g., the entire image boundary)
+contour_index = 0
 
 for contour in contours:
-    sumx = 0
-    sumy = 0
-    minx = 1000
-    miny = 1000
-    maxx = 0
-    maxy = 0
-    minimum = []
-    maximum = []
-    
+    # Initialize variables for storing bounding box properties
+    sum_x, sum_y = 0, 0
+    min_x, min_y = 1000, 1000
+    max_x, max_y = 0, 0
 
-    # This sub part is detection the shape by first unifying contours into shapes 
-    Area = cv2.contourArea(contour)
-    if Area > 5000:
-        # here we are ignoring first counter because
-        # findcontour function detects whole image as shape
-        
-        if i == 0:
-            i = 1                #Ye part samj nahi aya
+    # Calculate the area of the contour
+    contour_area = cv2.contourArea(contour)
+
+    # Filter out small or irrelevant contours based on area
+    if contour_area > 5000:
+        # Ignore the first contour if it's the image border
+        if contour_index == 0:
+            contour_index += 1
             continue
 
-        # cv2.approxPloyDP() function to approximate the shape
-        approx = cv2.approxPolyDP(
-            contour, 0.01 * cv2.arcLength(contour, True), True)
-        
-        # finding center point of shape
-        M = cv2.moments(contour)
-        if M['m00'] != 0.0:
-            x = int(M['m10']/M['m00'])
-            y = int(M['m01']/M['m00'])
-        liobj.append([x,y])   
-        
-        xc, yc, wc, hc = cv2.boundingRect(contour)
-        lianother.append([xc,yc,xc+wc,yc+hc,int(0)])
+        # Approximate the contour to a polygon
+        approximated_polygon = cv2.approxPolyDP(
+            contour, 0.01 * cv2.arcLength(contour, True), True
+        )
 
-        #cv2.imshow('arrow', img) 
-        eli.append(Area)
-        
-        # putting shape name at center of each shape and drawContours() function
-        if len(approx) == 3:
-            cv2.drawContours(img, [contour], 0, (0, 0, 255), 1)
-            cv2.putText(img, 'Triangle', (x, y),cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
-        elif len(approx) == 4:
-            cv2.drawContours(img, [contour], 0, (0,255, 255), 1)
-            cv2.putText(img, 'Quadrilateral', (x, y),cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0,255, 255), 2)           
-        elif len(approx) == 5:
-            cv2.drawContours(img, [contour], 0, (0, 255,0), 1)
-            cv2.putText(img, 'Pentagon', (x, y),cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0,0, 255),2)
-        elif len(approx) == 6:
-            cv2.drawContours(img, [contour], 0, (0, 0, 255), 1)
-            cv2.putText(img, 'Hexagon', (x, y),cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
-        elif len(approx) == 8:
-            cv2.drawContours(img, [contour],0, (255,0,0), 1)
-            cv2.putText(img, 'Octagon', (x, y),cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 0,0 ), 2)    
+        # Calculate the centroid (center point) of the shape
+        moments = cv2.moments(contour)
+        if moments['m00'] != 0.0:
+            centroid_x = int(moments['m10'] / moments['m00'])
+            centroid_y = int(moments['m01'] / moments['m00'])
+            shape_centers.append([centroid_x, centroid_y])
+
+        # Get the bounding box of the contour
+        bounding_x, bounding_y, bounding_width, bounding_height = cv2.boundingRect(contour)
+        bounding_boxes.append([
+            bounding_x, bounding_y, bounding_x + bounding_width, bounding_y + bounding_height, 0
+        ])
+
+        # Add the contour area to the list
+        shape_areas.append(contour_area)
+
+        # Determine the shape based on the number of sides of the polygon
+        num_sides = len(approximated_polygon)
+        if num_sides == 3:
+            shape_label = 'Triangle'
+            color = (0, 0, 255)  # Red
+        elif num_sides == 4:
+            shape_label = 'Quadrilateral'
+            color = (0, 255, 255)  # Yellow
+        elif num_sides == 5:
+            shape_label = 'Pentagon'
+            color = (0, 255, 0)  # Green
+        elif num_sides == 6:
+            shape_label = 'Hexagon'
+            color = (255, 0, 0)  # Blue
+        elif num_sides == 8:
+            shape_label = 'Octagon'
+            color = (255, 0, 255)  # Purple
         else:
-            cv2.drawContours(img, [contour], 0, ( 255, 255,0), 1)
-            cv2.putText(img, 'circle', (x, y),cv2.FONT_HERSHEY_SIMPLEX, 0.6, ( 255, 255,0), 2)
+            shape_label = 'Circle'
+            color = (255, 255, 0)  # Cyan
+
+        # Draw the contour and annotate the shape name
+        cv2.drawContours(resized_image, [contour], 0, color, 1)
+        cv2.putText(resized_image, shape_label, (centroid_x, centroid_y),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
+
+# ------------------- Debugging and Outputs ------------------- #
+
+# Print summaries of detected shapes for verification
+print("Shape Detection Summary:")
+print(f"Bounding Boxes: {bounding_boxes}")
+print(f"Shape Centers: {shape_centers}")
+print(f"Shape Areas: {shape_areas}")
+
+# Display the processed image and contours
+cv2.imshow("Detected Shapes", resized_image)
+cv2.imshow("Contours", contour_overlay)
+
 
 
     # ARROW IDENTIFICATION
