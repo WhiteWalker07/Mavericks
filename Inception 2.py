@@ -1,100 +1,124 @@
-#                      VERY VERY IMPORTANTS RULES BY TEAM MAVERICKS
+"""
+Program: FBD Diagram Analysis with OCR and Shape Detection
+Author: [Your Name]
+Description:
+    This section of the code detects text and shapes in an image, leveraging EasyOCR
+    and Tesseract for text recognition, and OpenCV for image processing and contour analysis.
+    The goal is to identify objects, their labels, and associated features in the image.
+"""
 
-# 1. If you are a CODER then MOVE through the code, MAVERICKS MANEUVER through the code.
-# 2. If the code is not taking off then and is showing error this please put the file location on your device
-# File "c:\Users\suyash\Desktop\KACHRA\laohub\SmileinPain\Frost Hack\Inception 2.py", line 32, in <module>
-#   cv2.imshow("imput", img1)
-# This line no. may be different please either put the file in this folder otherwise put the location of the file in your desktop
-# 3. Code me beech me bhaut jagha machi hui he to please hum khud confuse ho jatae he nahi samj aaye to let it be.
-
-
-#                   OUR CURRENT PROBLEMS IF YOU HAVE ANY SUGGESTION PLEASE TELL US: 
-
-# 1. We have to write a code to identify tilted objeects and their inclination
-# 2. We have to solve the area problem between the arrow and objects
-# 3. The Easy-OCR library is failing to recogonise single text notations like X,x,F,etc 
-
-
-import cv2                                            
-import pytesseract                                     
-import os                                            
+# Importing necessary libraries
+import cv2
+import pytesseract
+import os
 import numpy as np
-import re
-import math
 import easyocr as ey
 
-  
+# Set the Tesseract executable path (Update this according to your system installation)
 pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
 
+# Define a function to calculate the slope between two points
+def calculate_slope(point1, point2):
+    """
+    Calculate the slope of the line connecting two points.
 
-def slope(p1,p2):
-        return (p2[1] - p1[1])/(p2[0] - p1[0])
+    Args:
+        point1 (tuple): Coordinates of the first point (x1, y1).
+        point2 (tuple): Coordinates of the second point (x2, y2).
+
+    Returns:
+        float: Slope of the line.
+    """
+    return (point2[1] - point1[1]) / (point2[0] - point1[0])
 
 
-global unknowns
-link = r'C:\Users\suyash\Desktop\KACHRA\laohub\Ajgar\FROST HACK\Frost Hack Video\Shape34.png'
-#link = r'C:\Users\suyash\Desktop\shape32.png'
-img1 = cv2.imread(link)
-cv2.imshow("imput", img1)
-img = cv2.resize(img1,(500,500),interpolation=cv2.INTER_AREA)
-img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+# -------------------------- Image Preprocessing and Setup -------------------------- #
 
-gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-ret, thresh1 = cv2.threshold(gray, 150, 255, cv2.THRESH_OTSU | cv2.THRESH_BINARY_INV)
+# Define the input image path (Update this with the actual file path)
+image_path = r'C:\Users\suyash\Desktop\KACHRA\laohub\Ajgar\FROST HACK\Frost Hack Video\Shape34.png'
+
+# Load the input image
+input_image = cv2.imread(image_path)
+
+# Display the input image (for debugging purposes)
+cv2.imshow("Input Image", input_image)
+
+# Resize and preprocess the image
+processed_image = cv2.resize(input_image, (500, 500), interpolation=cv2.INTER_AREA)
+processed_image = cv2.cvtColor(processed_image, cv2.COLOR_BGR2RGB)
+
+# Convert the image to grayscale
+gray_image = cv2.cvtColor(processed_image, cv2.COLOR_BGR2GRAY)
+
+# Apply thresholding to create a binary image
+_, binary_image = cv2.threshold(gray_image, 150, 255, cv2.THRESH_OTSU | cv2.THRESH_BINARY_INV)
+
+# Define a rectangular kernel for morphological operations
 rect_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (8, 8))
-contours, _ = cv2.findContours(thresh1, cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_NONE)
 
-lianother = []
-liobj = []
-text = []
-i= -1
+# Find contours in the binary image
+contours, _ = cv2.findContours(binary_image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
 
+# -------------------------- Text Detection using EasyOCR -------------------------- #
 
-#Text detection using Easy-OCR library
-reader = ey.Reader(['en'])
-texteasy = reader.readtext(thresh1)
+# Initialize the EasyOCR reader
+ocr_reader = ey.Reader(['en'])
 
+# Perform text recognition on the binary image
+detected_text = ocr_reader.readtext(binary_image)
 
-file = open("recognized.txt", "a")
-for i in range(len(texteasy)):
-    text1 = texteasy[i][1]
-    file.write(str(text1))
-    print(text1)
-    text.append([int(texteasy[i][0][0][0]),int(texteasy[i][0][0][1]),int(texteasy[i][0][2][0]) - int(texteasy[i][0][0][0]),int(texteasy[i][0][2][1]) - int(texteasy[i][0][0][1]),text1])
+# Save recognized text to a file
+with open("recognized_text.txt", "a") as text_file:
+    recognized_objects = []  # Store recognized text with bounding box details
+    for text_data in detected_text:
+        recognized_text = text_data[1]
+        text_file.write(recognized_text + "\n")
+        print(f"Recognized Text: {recognized_text}")
 
-file.close()
+        # Store the text and its bounding box details
+        recognized_objects.append([
+            int(text_data[0][0][0]),  # Top-left x-coordinate
+            int(text_data[0][0][1]),  # Top-left y-coordinate
+            int(text_data[0][2][0]) - int(text_data[0][0][0]),  # Width
+            int(text_data[0][2][1]) - int(text_data[0][0][1]),  # Height
+            recognized_text  # Detected text
+        ])
 
-def locat():
-    loc = input("Please enter the location where you would like to save thic file")
-    if os.path.isdir(loc) is True:
-        return loc
-    else : 
-        locat()
-#This is the tesseract text recogniation method in which is poor at recogniation of text was the first method we used for text recogination
-# Currently if easy ocr doesn't detect any text then we will try to recogonise text with tesseract
+# -------------------------- Fallback Text Detection using Tesseract -------------------------- #
 
-if text == []:
-    for cnt in contours:
-        i = i + 1
-        x, y, w, h = cv2.boundingRect(cnt)
+# If EasyOCR does not detect any text, use Tesseract OCR as a fallback
+if not recognized_objects:
+    for contour in contours:
+        # Get the bounding box for the contour
+        x, y, width, height = cv2.boundingRect(contour)
+
+        # Draw a rectangle around the detected region (for visualization)
+        cv2.rectangle(processed_image, (x, y), (x + width, y + height), (0, 255, 0), 2)
+
+        # Crop the region of interest for OCR
+        cropped_region = binary_image[y:y + height, x:x + width]
+
+        # Recognize text using Tesseract OCR
+        tesseract_text = pytesseract.image_to_string(cropped_region)
         
-        # Drawing a rectangle on copied image
-        rect = cv2.rectangle(img, (x, y), (x + w, y + h), (0, 255, 0), 2)
-        
-        # Cropping the text block for giving input to OCR
-        cropped = thresh1[y:y + h, x:x + w]
-        
-        # Open the file in append mode
-        file = open("recognized.txt", "a")
-    
-        # Apply OCR on the cropped image
-        text1 = pytesseract.image_to_string(cropped)
-        file.write(text1[i][-2])
-        text.append([x,y,w,h,text1])
-        #file.write("\n")  
-        #print(text)
-        #print(text1)
-    file.close()
+        # Append the detected text to the list
+        recognized_objects.append([x, y, width, height, tesseract_text])
+
+# -------------------------- Utility Function for Output Location -------------------------- #
+
+def get_output_location():
+    """
+    Prompt the user to enter the location to save the output files.
+
+    Returns:
+        str: Valid directory path for saving the output.
+    """
+    location = input("Please enter the location where you want to save the output files: ")
+    if os.path.isdir(location):
+        return location
+    else:
+        print("Invalid location. Please try again.")
+        return get_output_location()
 
 
 
