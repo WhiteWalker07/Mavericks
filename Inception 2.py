@@ -344,7 +344,7 @@ if 1000 < contour_area < 5000:
             max_y,        # Bounding box maximum y-coordinate
             round(angle, 2)  # Calculated angle (rounded to two decimals)
         ]
-        sumt.append(arrow_details)
+        sum_of_arrows.append(arrow_details)
 
         # Mark the detected arrow on the image
         cv2.circle(resized_image, (min_x, min_y), 2, (10, 10, 255), thickness=-1)  # Mark minimum point
@@ -421,104 +421,149 @@ for shape in shape_details:
     resized_image = cv2.putText(resized_image, "N", (center_x - 20, center_y - int(height_center / 1.5) - 10), cv2.FONT_HERSHEY_COMPLEX, 0.7, (0, 0, 255), 1)
 
 
-#Finding where are different variables
+"""
+Variable Extraction and Unification
+Description:
+    This section identifies variables (e.g., weights in "kg", forces in "N", or other variables)
+    from the detected text data. It maps these variables to their respective shapes or arrows
+    by calculating distances. Finally, it structures the data for Free Body Diagram (FBD) representation.
+"""
 
-# Here we are taking out the the target string and the number with it by usiing re library target->to uppercase->finding ->storing
-kilo = []
-nor = []
-e = 0
-vari = []
+# Initialize lists to store extracted variable data
+weights_in_kg = []  # List to store weights in kilograms
+forces_in_N = []    # List to store forces in Newtons
+unidentified_indices = []  # Tracks the indices of unidentified variables
+variable_index = 0  # Index tracker for variables
+unidentified_variables = []  # List to store unidentified variables
 
-for x in text:
+# Parse detected text data to extract variable information
+for text_entry in text_data:
+    """
+    Each text_entry contains the bounding box coordinates and detected text:
+    - text_entry[0]: Top-left x-coordinate
+    - text_entry[1]: Top-left y-coordinate
+    - text_entry[2]: Width of the bounding box
+    - text_entry[3]: Height of the bounding box
+    - text_entry[4]: Detected text
+    """
 
-    #Finding the location of the variable
-    loc = x[4].upper().find("KG")
-    locf = x[4].find("N")
-    
-    #locating the closest number to the string
-    numd = x[4][:int(loc)]
-    numf = x[4][:int(locf)]
-    
-    #Making the string pattern we want
-    reco = re.compile('\D')
-    
-    #Applying the string pattern to be found
-    n = reco.split(numd)
-    f = reco.split(numf)
-    
-    # Making the variables storing the values null to avoid unnecessary values
-    nkg = []
-    nn = []
-    for i in n:
-        if i != '' and loc!= -1:
-            nkg = i
+    # Extract the text string and convert to uppercase for uniformity
+    text_string = text_entry[4].upper()
 
-    if nkg != []:       
-        kilo.append([int((x[0]+ x[2]/2)*1.4), int((x[1] + x[3]/2)*1.4) ,int(nkg),"kg"]) 
+    # Find the locations of "KG" and "N" in the string
+    kg_location = text_string.find("KG")  # Location of "KG" for weight variables
+    n_location = text_string.find("N")   # Location of "N" for force variables
 
-    for i in f:
-        if i != '' and locf!= -1:
-            nn = i 
+    # Extract numeric values preceding "KG" and "N" in the string
+    numeric_kg = text_string[:kg_location]
+    numeric_n = text_string[:n_location]
 
-    if nn!=[]:
-        nor.append([int((x[0]+ x[2]/2)*1.4), int((x[1] + x[3]/2)*1.4),int(nn),"N"])
+    # Define a regex pattern to isolate numeric values
+    number_pattern = re.compile(r'\D')  # Matches non-numeric characters
 
-    if nkg == [] and nn == []:
-        vari.append(e)  
-    e = e+1
-variable = []
-for i in vari:
-    variable.append([int((text[i][0]+ text[i][2]/2)*1.4), int((text[i][1] + text[i][3]/2)*1.4),text[i][4],"vari"])
+    # Extract numeric parts for "KG" and "N"
+    extracted_kg = number_pattern.split(numeric_kg)
+    extracted_n = number_pattern.split(numeric_n)
 
-print(variable)
+    # Process "KG" values and store valid entries in weights_in_kg
+    kg_value = []
+    for value in extracted_kg:
+        if value != '' and kg_location != -1:  # Ensure valid numeric value
+            kg_value = value
+    if kg_value:
+        weights_in_kg.append([
+            int((text_entry[0] + text_entry[2] / 2) * 1.4),  # Center x-coordinate
+            int((text_entry[1] + text_entry[3] / 2) * 1.4),  # Center y-coordinate
+            int(kg_value),  # Numeric value
+            "kg"  # Unit type
+        ])
 
-#print(liobj)                   #Centres
-#print(lianother)               #Edegs
-print(shape)                    
-#print(eli)                     #Area
-#print(text)                    #text seen by the program
-print(sumt)
-net = kilo + nor + variable
-print(net)            
+    # Process "N" values and store valid entries in forces_in_N
+    n_value = []
+    for value in extracted_n:
+        if value != '' and n_location != -1:  # Ensure valid numeric value
+            n_value = value
+    if n_value:
+        forces_in_N.append([
+            int((text_entry[0] + text_entry[2] / 2) * 1.4),  # Center x-coordinate
+            int((text_entry[1] + text_entry[3] / 2) * 1.4),  # Center y-coordinate
+            int(n_value),  # Numeric value
+            "N"  # Unit type
+        ])
 
+    # Identify variables that are neither "KG" nor "N"
+    if not kg_value and not n_value:
+        unidentified_indices.append(variable_index)  # Record the index
+    variable_index += 1
 
-#Phase 2 Class and unification of variables
+# Store unidentified variables with their positions
+for idx in unidentified_indices:
+    unidentified_variables.append([
+        int((text_data[idx][0] + text_data[idx][2] / 2) * 1.4),  # Center x-coordinate
+        int((text_data[idx][1] + text_data[idx][3] / 2) * 1.4),  # Center y-coordinate
+        text_data[idx][4],  # Detected text
+        "vari"  # Mark as unidentified variable
+    ])
 
-combo = shape + sumt
-#print(combo)                           #Combined forces and mass arrays
-for x in combo:
-    minxd = 10000
-    w = -1
-    
-    s = None
-    for i in net:
-        xc = x[0] - i[0]
-        yc = x[1] - i[1]
-        dist = math.sqrt(xc*xc + yc*yc)
-        w= w + 1
-        if dist<minxd:
-            minxd = dist
-            s = w
-    
-    x.insert(-1,net[s][2])
-    x.insert(-1,net[s][3])
-        
+# Combine all identified variables into a single list
+print("Unidentified Variables:", unidentified_variables)
+all_variables = weights_in_kg + forces_in_N + unidentified_variables
+print("All Identified Variables:", all_variables)
 
+# Combine shape data and sum of arrows for unification
+combined_data = shape_details + sum_of_arrows  # Merge shape details and arrow data
 
-class fbd():
+# Map variables to their closest corresponding shapes or arrows
+for shape_entry in combined_data:
+    """
+    For each shape_entry, find the closest variable from all_variables
+    based on Euclidean distance, and append the variable's data to the shape_entry.
+    """
+    min_distance = float('inf')  # Initialize minimum distance
+    closest_index = -1  # Track the index of the closest variable
 
-    def __init__(self ,mass):
+    for idx, variable_entry in enumerate(all_variables):
+        # Calculate Euclidean distance between shape and variable
+        x_diff = shape_entry[0] - variable_entry[0]
+        y_diff = shape_entry[1] - variable_entry[1]
+        distance = math.sqrt(x_diff ** 2 + y_diff ** 2)
+
+        # Update the closest variable if the distance is smaller
+        if distance < min_distance:
+            min_distance = distance
+            closest_index = idx
+
+    # Append the closest variable's value and type to the shape_entry
+    shape_entry.insert(-1, all_variables[closest_index][2])  # Variable value
+    shape_entry.insert(-1, all_variables[closest_index][3])  # Variable type
+
+# Define a class for Free Body Diagram (FBD) objects
+class FreeBodyDiagram:
+    """
+    A class representing a Free Body Diagram (FBD) object.
+    Attributes:
+        mass: The mass associated with the FBD object.
+    """
+    def __init__(self, mass):
         self.mass = mass
-        #self.angle = angle
-            
-print(combo)
 
-final =[]
-for i in range(len(combo)):
-    if combo[i][-2] == "kg":
-        final.append(combo[i])
+# Finalize the data structure for FBD representation
+final_fbd_data = []
+for entry in combined_data:
+    """
+    Separate entries based on the variable type:
+    - If the variable type is "kg", treat it as a weight.
+    - Otherwise, include it in the final FBD data.
+    """
+    if entry[-2] == "kg":
+        final_fbd_data.append(entry)
     else:
-        final.append(combo[i])
+        final_fbd_data.append(entry)
+
+# Display results for debugging and verification
+print("Combined Data:", combined_data)
+print("Final FBD Data:", final_fbd_data)
+
 
 
 #PREVIOUS TRYS
